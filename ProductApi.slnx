@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../cscs/cscs.csproj" />
+  <Project Path="ProductApi.csproj" />
+</Solution>
