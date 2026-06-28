@@ -11,82 +11,199 @@ using ProductApi.Servies.SProduct;
 using ProductApi.Servies.SUser;
 using System.Text;
 
+// إنشاء Builder المسؤول عن إعداد المشروع وقراءة الإعدادات من appsettings.json
 var builder = WebApplication.CreateBuilder(args);
+
+// ========================== FluentValidation ==========================
+
+// تفعيل التحقق التلقائي من صحة البيانات القادمة من المستخدم.
+// عند إرسال DTO إلى Controller سيتم تشغيل Validators تلقائياً.
 builder.Services.AddFluentValidationAutoValidation();
+
+// البحث عن جميع Validators الموجودة في المشروع وإضافتها إلى DI Container.
+// FluentValidations هو أي Validator موجود داخل المشروع.
 builder.Services.AddValidatorsFromAssemblyContaining<FluentValidations>();
+
+// ========================== Swagger ==========================
+
+// إضافة Swagger لاختبار الـ API من المتصفح.
 builder.Services.AddSwaggerGen(s =>
 {
-    s.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter JWT like: Bearer {token}"
-    });
+// تعريف نوع المصادقة الذي سيستخدمه Swagger.
+// هنا نستخدم JWT Bearer Token.
+s.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+{
+// اسم Header الذي سيتم إرسال التوكن من خلاله.
+Name = "Authorization",
 
-    s.AddSecurityRequirement(new OpenApiSecurityRequirement
+```
+    // نوع المصادقة HTTP Authentication.
+    Type = SecuritySchemeType.Http,
+
+    // نوع المخطط المستخدم.
+    Scheme = "Bearer",
+
+    // شكل التوكن JWT.
+    BearerFormat = "JWT",
+
+    // مكان إرسال التوكن داخل Header.
+    In = ParameterLocation.Header,
+
+    // شرح للمستخدم داخل Swagger.
+    Description = "Enter JWT like: Bearer {token}"
+});
+
+// إجبار Swagger على إرسال التوكن مع جميع الطلبات المحمية.
+s.AddSecurityRequirement(new OpenApiSecurityRequirement
+{
     {
+        new OpenApiSecurityScheme
         {
-            new OpenApiSecurityScheme
+            Reference = new OpenApiReference
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
-    });
-});// Add services to the container.
+                // الرجوع إلى Security Definition السابق.
+                Type = ReferenceType.SecurityScheme,
 
-builder.Services.AddDbContext<AppDbContexests>(
-    option => option.UseSqlServer(
-    builder.Configuration.GetConnectionString("FC")));
-builder.Services.AddControllers();
-builder.Services.AddScoped<IRUser, RUser>();
-builder.Services.AddScoped<IRCategores, RCategores>();
-builder.Services.AddScoped<IRProduct, RProduct>();
-builder.Services.AddScoped<ISProduct, SProduct>();
-builder.Services.AddScoped<ISCategores, SCategores>();
-builder.Services.AddScoped<ISUser, SUsers>();
-builder.Services.AddAutoMapper(typeof(Program));
-var settingJwt = builder.Configuration.GetSection("JWT");
-var Key = Encoding.UTF8.GetBytes(settingJwt["Key"]);
-builder.Services.Configure<JWT>(settingJwt);
-builder.Services.AddAuthentication(S =>
-{
-    S.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    S.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-}).
-AddJwtBearer(s => s.TokenValidationParameters = new TokenValidationParameters
-{
-    ValidateIssuer = true,
-
-    ValidAudience = settingJwt["Audience"],
-    ValidIssuer = settingJwt["Issuer"],
-    ValidateIssuerSigningKey = true,
-    IssuerSigningKey = new SymmetricSecurityKey(Key),
+                // اسم الـ Security Definition.
+                Id = "Bearer"
+            }
+        },
+        new string[] {}
+    }
+});
+```
 
 });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 
+// ========================== Database ==========================
 
+// تسجيل DbContext داخل Dependency Injection.
+// UseSqlServer يعني استخدام SQL Server كقاعدة بيانات.
+builder.Services.AddDbContext<AppDbContexests>(
+option => option.UseSqlServer(
+builder.Configuration.GetConnectionString("FC")));
+
+// FC هو اسم Connection String داخل appsettings.json
+
+// ========================== Controllers ==========================
+
+// تفعيل Controllers داخل المشروع.
+builder.Services.AddControllers();
+
+// ========================== Dependency Injection ==========================
+
+// عند طلب IRUser سيتم إنشاء RUser تلقائياً.
+builder.Services.AddScoped<IRUser, RUser>();
+
+// Repository الخاص بالأقسام.
+builder.Services.AddScoped<IRCategores, RCategores>();
+
+// Repository الخاص بالمنتجات.
+builder.Services.AddScoped<IRProduct, RProduct>();
+
+// Service الخاص بالمنتجات.
+builder.Services.AddScoped<ISProduct, SProduct>();
+
+// Service الخاص بالأقسام.
+builder.Services.AddScoped<ISCategores, SCategores>();
+
+// Service الخاص بالمستخدمين.
+builder.Services.AddScoped<ISUser, SUsers>();
+
+// ========================== AutoMapper ==========================
+
+// تسجيل AutoMapper لتحويل DTO ↔ Entity.
+builder.Services.AddAutoMapper(typeof(Program));
+
+// ========================== JWT Settings ==========================
+
+// قراءة قسم JWT من appsettings.json.
+var settingJwt = builder.Configuration.GetSection("JWT");
+
+// تحويل المفتاح السري إلى Byte Array لاستخدامه في تشفير التوكن.
+var Key = Encoding.UTF8.GetBytes(settingJwt["Key"]!);
+
+// ربط بيانات JWT الموجودة في appsettings مع كلاس JWT.
+builder.Services.Configure<JWT>(settingJwt);
+
+// ========================== Authentication ==========================
+
+// تفعيل JWT Authentication.
+builder.Services.AddAuthentication(options =>
+{
+// النظام الافتراضي للمصادقة.
+options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+
+```
+// النظام المستخدم عند وجود [Authorize].
+options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+```
+
+})
+.AddJwtBearer(options =>
+{
+// إعدادات التحقق من التوكن.
+options.TokenValidationParameters = new TokenValidationParameters
+{
+// التحقق من أن Issuer صحيح.
+ValidateIssuer = true,
+
+```
+    // التحقق من أن Audience صحيح.
+    ValidateAudience = true,
+
+    // التحقق من صلاحية التوكن وعدم انتهاء مدته.
+    ValidateLifetime = true,
+
+    // التحقق من صحة التوقيع.
+    ValidateIssuerSigningKey = true,
+
+    // المفتاح المستخدم للتحقق من صحة التوقيع.
+    IssuerSigningKey = new SymmetricSecurityKey(Key),
+
+    // الجهة المصدرة للتوكن.
+    ValidIssuer = settingJwt["Issuer"],
+
+    // الجهة المستقبلة للتوكن.
+    ValidAudience = settingJwt["Audience"],
+
+    // منع السماح الافتراضي بعد انتهاء التوكن.
+    ClockSkew = TimeSpan.Zero
+};
+```
+
+});
+
+// ========================== Build ==========================
+
+// إنشاء التطبيق بعد الانتهاء من تسجيل الخدمات.
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ========================== Middleware Pipeline ==========================
+
+// تشغيل Swagger فقط أثناء التطوير.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+app.UseSwagger();
+
+```
+// واجهة Swagger UI.
+app.UseSwaggerUI();
+```
+
 }
 
+// تحويل جميع الطلبات إلى HTTPS.
 app.UseHttpsRedirection();
+
+// قراءة JWT Token والتحقق منه.
 app.UseAuthentication();
+
+// تطبيق [Authorize] والتحقق من الصلاحيات.
 app.UseAuthorization();
 
+// ربط Controllers مع Routes.
 app.MapControllers();
 
+// تشغيل التطبيق.
 app.Run();
